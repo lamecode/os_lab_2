@@ -52,7 +52,7 @@ void *mem_alloc(size_t size) {
                 pages[i].classSize = size;
                 pages[i].numOfBlocks = num_of_blocks;
                 pages[i].freeBlocks = num_of_blocks - 1;
-                return pages[i].freeBlock;
+                return pages[i].pageStart;
             } else {
                 class = size / PAGE_SIZE;
                 pages[i].freeBlock = pages[i].freeBlock
@@ -64,7 +64,7 @@ void *mem_alloc(size_t size) {
                     pages[j].classSize = size;
                     pages[i].numOfBlocks = 1;
                 }
-                return pages[i].freeBlock;
+                return pages[i].pageStart;
             }
         } else if (pages[i].status == DIVIDED &&
         pages[i].freeBlocks > 0 && pages[i].classSize == size) {
@@ -73,7 +73,7 @@ void *mem_alloc(size_t size) {
             }
             pages[i].freeBlock = pages[i].freeBlock + size;
             pages[i].freeBlocks = pages[i].freeBlocks - 1;
-            return pages[i].freeBlock;
+            return pages[i].freeBlock - pages[i].classSize;
         }
     }
     return NULL;
@@ -83,11 +83,39 @@ void mem_free(void* addr) {
     int page_number = 0;
     for (int i = 0; i < NUM_OF_PAGES; i++) {
         if (addr >= pages[i].pageStart &&
-                            addr <= pages[i].freeBlock) {
+                            addr < pages[i].freeBlock) {
             page_number = i;
+            break;
         }
     }
-
+    int num_of_pages = pages[page_number].class;
+    switch (pages[page_number].status) {
+        case FREE: break;
+        case MULTIBLOCK:
+            for (int j = page_number;
+                            num_of_pages > 0; j++) {
+                pages[j].status = FREE;
+                pages[j].freeBlock = pages[j].pageStart;
+                pages[j].class = 0;
+                pages[j].classSize = 0;
+                pages[j].numOfBlocks = 0;
+                num_of_pages--;
+            }
+            break;
+        case DIVIDED: pages[page_number].freeBlock
+                            = pages[page_number].freeBlock - pages[page_number].classSize;
+            pages[page_number].freeBlocks
+                    = pages[page_number].freeBlocks + 1;
+        if (pages[page_number].freeBlocks ==
+                                      pages[page_number].numOfBlocks) {
+            pages[page_number].status = FREE;
+            pages[page_number].class = 0;
+            pages[page_number].classSize = 0;
+            pages[page_number].numOfBlocks = 0;
+            pages[page_number].freeBlocks = 0;
+        }
+            break;
+    }
 }
 
 void* mem_realloc(void* addr, size_t size) {
@@ -143,6 +171,12 @@ int main() {
     void* block3 = mem_alloc(512);
     void* multi = mem_alloc(13000);
     mem_dump();
-    printf("Принцип роботи mem_free:\n");
-//    mem_free();
+    printf("Принцип роботи mem_free:\n\n");
+    printf("   для мультиблоку:\n");
+    mem_free(multi);
+    mem_dump();
+    printf("   для звичайного блоку:\n");
+    mem_free(block2_2);
+    mem_free(block1);
+    mem_dump();
 }
